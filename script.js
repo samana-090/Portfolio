@@ -1,6 +1,10 @@
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
+const EMAILJS_PUBLIC_KEY = "PASTE_YOUR_PUBLIC_KEY_HERE";
+const EMAILJS_SERVICE_ID = "PASTE_YOUR_SERVICE_ID_HERE";
+const EMAILJS_TEMPLATE_ID = "PASTE_YOUR_TEMPLATE_ID_HERE";
+
 function setYear() {
   const el = $("#year");
   if (el) el.textContent = String(new Date().getFullYear());
@@ -60,6 +64,37 @@ function setupActiveNav() {
   map.forEach((_, section) => obs.observe(section));
 }
 
+function setupReveal() {
+  const items = $$("[data-reveal]");
+  if (items.length === 0) return;
+
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    items.forEach((el) => {
+      el.classList.add("reveal--visible");
+    });
+    return;
+  }
+
+  items.forEach((el) => el.classList.add("reveal"));
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("reveal--visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    {
+      threshold: 0.15,
+      rootMargin: "0px 0px -10% 0px",
+    },
+  );
+
+  items.forEach((el) => observer.observe(el));
+}
+
 async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
@@ -86,8 +121,65 @@ function setupCopyEmail() {
   });
 }
 
+function setupContactForm() {
+  const form = document.getElementById("contact-form");
+  const status = document.querySelector("[data-form-status]");
+  if (!form) return;
+
+  if (window.emailjs && EMAILJS_PUBLIC_KEY && EMAILJS_PUBLIC_KEY !== "PASTE_YOUR_PUBLIC_KEY_HERE") {
+    window.emailjs.init(EMAILJS_PUBLIC_KEY);
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+
+    const formData = new FormData(form);
+    const name = String(formData.get("name") || "").trim();
+    const email = String(formData.get("email") || "").trim();
+    const message = String(formData.get("message") || "").trim();
+
+    if (!name || !email || !message) {
+      if (status) status.textContent = "Please fill in all fields.";
+      return;
+    }
+
+    if (window.emailjs && EMAILJS_SERVICE_ID && EMAILJS_TEMPLATE_ID &&
+        EMAILJS_PUBLIC_KEY && EMAILJS_PUBLIC_KEY !== "PASTE_YOUR_PUBLIC_KEY_HERE") {
+      if (status) status.textContent = "Sending...";
+
+      window.emailjs
+        .send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+          from_name: name,
+          to_email: email,
+          message,
+        })
+        .then(() => {
+          form.reset();
+          if (status) status.textContent = "Thank you! A confirmation email has been sent.";
+          window.setTimeout(() => {
+            if (status) status.textContent = "";
+          }, 4000);
+        })
+        .catch(() => {
+          if (status) status.textContent = "Sending failed. Please try again or email me directly.";
+        });
+    } else {
+      form.reset();
+      if (status) {
+        status.textContent =
+          "Form submitted locally. To send real emails, connect EmailJS in script.js.";
+      }
+      window.setTimeout(() => {
+        if (status) status.textContent = "";
+      }, 4000);
+    }
+  });
+}
+
 setYear();
 setupMobileNav();
 setupActiveNav();
 setupCopyEmail();
+setupReveal();
+setupContactForm();
 
